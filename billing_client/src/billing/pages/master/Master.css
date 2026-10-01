@@ -334,6 +334,10 @@
 }
 
 @media (max-width: 900px) {
+  .mst-page {
+    padding: 10px 10px 20px;
+  }
+
   .mst-grid,
   .mst-grid-wide {
     grid-template-columns: 1fr;
@@ -347,8 +351,35 @@
     grid-template-columns: 1fr;
   }
 
+  .mst-actions {
+    flex-wrap: wrap;
+  }
+
+  .mst-card-h {
+    align-items: flex-start;
+    line-height: 1.35;
+  }
+
   .mst-other-body {
     grid-template-columns: 1fr;
+  }
+
+  .mst-table-wrap {
+    overflow-x: auto;
+    max-height: none;
+  }
+
+  .mst-table,
+  .mst-table-wide {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
+  }
+
+  .mst-table th,
+  .mst-table td {
+    overflow: visible;
+    text-overflow: clip;
   }
 }
 

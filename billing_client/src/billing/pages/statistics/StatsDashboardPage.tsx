@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
   Area,
@@ -16,28 +15,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { billingApi } from '../../../api/billing/billing-api-service';
-import { sendToLocalPrinter } from '../../../api/billing/local-print';
 import { statsApi, statsData, statsError } from '../../../api/statistics/statistics-api-service';
-import { routerPathNames } from '../../../routes/routerPathNames';
-import { useBillDetail } from '../account-reports/BillDetailModal';
-import '../admin/MonthlyBills.css';
 import '../master/Master.css';
 import './Stats.css';
 
 type Day = { date: string; sales: number; purchase: number };
-type BillCard = {
-  billId: number;
-  billDisplay: string;
-  customerName: string;
-  customerPhone: string;
-  date: string;
-  time: string;
-  payable: number;
-  paymentMode: number;
-  isTaxBill: number;
-  stateLabel: string;
-};
 type Dash = {
   year: number; month: number; label: string;
   sales: number; lastSales: number; salesPct: number;
@@ -45,7 +27,6 @@ type Dash = {
   expense: number; lastExpense: number; expensePct: number;
   profit: number; lastProfit: number; profitPct: number;
   netProfit: number; todaySales: number; todayBills: number; daily: Day[];
-  bills?: BillCard[];
 };
 
 const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -61,28 +42,6 @@ const compact = (v: number) => {
   if (abs >= 1000) return `${(v / 1000).toFixed(1)}k`;
   return String(Math.round(v));
 };
-
-const inr = (v?: number) =>
-  `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-const fmtDate = (d: string) => {
-  const dt = new Date(`${String(d).slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(dt.getTime())) return d;
-  return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-};
-
-const fmtTime = (t: string) => {
-  const parts = String(t || '').split(':');
-  if (parts.length < 2) return t || '';
-  let h = Number(parts[0]);
-  if (!Number.isFinite(h)) return t;
-  const m = parts[1];
-  const ampm = h >= 12 ? 'pm' : 'am';
-  h = h % 12 || 12;
-  return `${h}:${m} ${ampm}`;
-};
-
-const payLabel = (mode: number) => (mode === 2 ? 'Bank' : mode === 3 ? 'Mixed' : 'Cash');
 
 const ChartTip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -126,32 +85,14 @@ const ActiveSlice = (props: any) => {
 
 const StatsDashboardPage: React.FC = () => {
   const now = new Date();
-  const navigate = useNavigate();
-  const { openBill, billModal } = useBillDetail();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<Dash | null>(null);
-  const [bills, setBills] = useState<BillCard[]>([]);
   const [pieIndex, setPieIndex] = useState(0);
-
-  const loadBills = async (y: number, m: number, fromDash?: BillCard[]) => {
-    if (fromDash) {
-      setBills(fromDash);
-      return;
-    }
-    try {
-      const res: any = await billingApi.monthBills(y, m);
-      setBills(res?.success ? (res.data || []) : []);
-    } catch {
-      setBills([]);
-    }
-  };
 
   const load = async (y = year, m = month) => {
     try {
-      const dash = statsData<Dash>(await statsApi.dashboard(y, m));
-      setData(dash);
-      await loadBills(y, m, dash.bills);
+      setData(statsData<Dash>(await statsApi.dashboard(y, m)));
     } catch (err) {
       toast.error(statsError(err, 'Could not load dashboard'));
     }
@@ -170,40 +111,6 @@ const StatsDashboardPage: React.FC = () => {
     ].filter((s) => s.value > 0);
   }, [data]);
   const pieTotal = pieData.reduce((sum, s) => sum + s.value, 0);
-
-  const printBill = async (billNo: string) => {
-    try {
-      const res: any = await billingApi.dispatchPrint(billNo);
-      const print = res?.data || {};
-      if (!res?.success) {
-        toast.error(print.error || 'Print failed');
-        return;
-      }
-      if (print.type === 'printed') toast.success(print.message || 'Receipt printed');
-      else if (print.payload && print.printerName) {
-        await sendToLocalPrinter(print.printerName, print.payload);
-        toast.success(`Printed to: ${print.printerName}`);
-      }
-      else if (print.type === 'txt') toast.warn(print.message || 'Saved as TXT');
-      else if (print.type === 'a4') navigate(`/app/billing/print/${encodeURIComponent(billNo)}`);
-      else toast.error(print.message || 'Receipt was not sent to the printer. Keep start-print-agent.bat open on this PC.');
-    } catch (err: any) {
-      toast.error(err?.response?.data?.data?.error || 'Print failed');
-    }
-  };
-
-  const whatsApp = (card: BillCard) => {
-    const digits = (card.customerPhone || '').replace(/\D/g, '');
-    if (digits.length < 10) {
-      toast.error('Customer phone is missing');
-      return;
-    }
-    const phone = digits.length === 10 ? `91${digits}` : digits;
-    const text = encodeURIComponent(
-      `Sales Invoice #${card.billDisplay}\n${card.customerName || 'Customer'}\nAmount: ${inr(card.payable)}`
-    );
-    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
-  };
 
   return (
     <div className="mst-page">
@@ -312,58 +219,8 @@ const StatsDashboardPage: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="mst-card" style={{ marginTop: 12 }}>
-            <div className="mst-card-h">Bills — {data.label} ({bills.length})</div>
-            <div className="mst-card-b">
-              {bills.length === 0 ? (
-                <div className="mst-empty">No bills in this month.</div>
-              ) : (
-                <div className="mb-cards">
-                  {bills.map((card) => (
-                    <article className="mb-card" key={card.billId}>
-                      <div className="mb-card-body">
-                        <div>
-                          <h3 className="mb-name">{card.customerName || 'Walk-in'}</h3>
-                          <p className="mb-invoice">Sales Invoice #{card.billDisplay}</p>
-                          <p className="mb-meta">
-                            {fmtDate(card.date)} · {fmtTime(card.time)}
-                            {card.customerPhone ? ` · ${card.customerPhone}` : ''}
-                          </p>
-                          <div className="mb-chips">
-                            <span className="mb-chip">{payLabel(card.paymentMode)}</span>
-                            {card.isTaxBill === 1 && <span className="mb-chip">GST</span>}
-                            {card.stateLabel && <span className="mb-chip">{card.stateLabel}</span>}
-                          </div>
-                        </div>
-                        <div className="mb-amt">{inr(card.payable)}</div>
-                      </div>
-                      <div className="mb-actions">
-                        <button className="mb-act" type="button" onClick={() => openBill(card.billDisplay)}>
-                          <i className="fas fa-eye" /> View
-                        </button>
-                        <button
-                          className="mb-act"
-                          type="button"
-                          onClick={() => navigate(`${routerPathNames.billing}?edit=${encodeURIComponent(card.billDisplay)}`)}
-                        >
-                          <i className="fas fa-edit" /> Edit
-                        </button>
-                        <button className="mb-act mb-act-print" type="button" onClick={() => printBill(card.billDisplay)}>
-                          <i className="fas fa-print" /> Print
-                        </button>
-                        <button className="mb-act mb-act-wa" type="button" onClick={() => whatsApp(card)}>
-                          <i className="fab fa-whatsapp" /> WhatsApp
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
         </>
       )}
-      {billModal}
     </div>
   );
 };
