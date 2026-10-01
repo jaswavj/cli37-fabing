@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { billingApi } from '../../../api/billing/billing-api-service';
+import { sendToLocalPrinter } from '../../../api/billing/local-print';
 import { routerPathNames } from '../../../routes/routerPathNames';
 import { useBillDetail } from '../account-reports/BillDetailModal';
 import '../master/Master.css';
@@ -83,9 +84,13 @@ const MonthlyBillsPage: React.FC = () => {
         return;
       }
       if (data.type === 'printed') toast.success(data.message || 'Receipt printed');
+      else if (data.payload && data.printerName) {
+        await sendToLocalPrinter(data.printerName, data.payload);
+        toast.success(`Printed to: ${data.printerName}`);
+      }
       else if (data.type === 'txt') toast.warn(data.message || 'Saved as TXT');
       else if (data.type === 'a4') navigate(`/app/billing/print/${encodeURIComponent(billNo)}`);
-      else toast.error('Print did not run. Check printer in Company Details.');
+      else toast.error(data.message || 'Receipt was not sent to the printer. Keep start-print-agent.bat open on this PC.');
     } catch (err: any) {
       toast.error(err?.response?.data?.data?.error || 'Print failed');
     }

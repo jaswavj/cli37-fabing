@@ -19,6 +19,7 @@ import java.io.FileWriter;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -66,36 +67,32 @@ public class PosPrinterService {
 
     public PrintDispatchData printReceipt(String billNo) {
         PrintBillData bill = readService.printBill(billNo);
-        int width = receiptWidth(bill.getPrinterName());
-        PrintService service = findPrintService(bill.getPrinterName());
-        if (service != null) {
-            try {
-                byte[] receipt = buildReceipt(bill, width);
-                if (!sendRaw(service.getName(), receipt)) {
-                    throw new RuntimeException("Could not send raw data to " + service.getName());
-                }
-                PrintDispatchData data = new PrintDispatchData();
-                data.setType("printed");
-                data.setBillNo(billNo);
-                data.setMessage("Printed to: " + service.getName());
-                return data;
-            } catch (Exception ex) {
-                throw new RuntimeException("Print error: " + (ex.getMessage() == null ? "Unknown error" : ex.getMessage()));
-            }
+        String printerName = bill.getPrinterName() == null ? "" : bill.getPrinterName().trim();
+        if (printerName.isEmpty()) {
+            throw new RuntimeException("Set the thermal printer name in Company Details");
         }
+        int width = receiptWidth(printerName);
+        byte[] receipt;
         try {
-            String txtPath = writeTxt(bill, width);
-            File file = new File(txtPath);
-            PrintDispatchData data = new PrintDispatchData();
-            data.setType("txt");
-            data.setBillNo(billNo);
-            data.setTxtPath(txtPath.replace('\\', '/'));
-            data.setTxtFile(file.getName());
-            data.setMessage("No printer found. TXT saved to: " + data.getTxtPath());
-            return data;
+            receipt = buildReceipt(bill, width);
         } catch (Exception ex) {
-            throw new RuntimeException("Could not save receipt: " + ex.getMessage());
+            throw new RuntimeException("Could not build receipt: " + (ex.getMessage() == null ? "Unknown error" : ex.getMessage()));
         }
+        PrintService service = findPrintService(printerName);
+        if (service != null && sendRaw(service.getName(), receipt)) {
+            PrintDispatchData data = new PrintDispatchData();
+            data.setType("printed");
+            data.setBillNo(billNo);
+            data.setMessage("Printed to: " + service.getName());
+            return data;
+        }
+        PrintDispatchData data = new PrintDispatchData();
+        data.setType("local");
+        data.setBillNo(billNo);
+        data.setPrinterName(printerName);
+        data.setPayload(Base64.getEncoder().encodeToString(receipt));
+        data.setMessage("Sending to " + printerName + " on this PC");
+        return data;
     }
 
     private int receiptWidth(String printerName) {
@@ -401,7 +398,7 @@ public class PosPrinterService {
     }
 
     private void write(ByteArrayOutputStream out, String text) {
-        out.writeBytes(text.getBytes(StandardCharsets.UTF_8));
+        out.writeBytes(text.getBytes(StandardCharsets.ISO_8859_1));
     }
 
     private boolean blank(String value) {

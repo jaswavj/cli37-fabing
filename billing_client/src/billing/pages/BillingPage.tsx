@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { adminApi } from '../../api/admin/admin-api-service';
 import { BillingApiService } from '../../api/billing/billing-api-service';
+import { sendToLocalPrinter } from '../../api/billing/local-print';
 import { OrderListApiService } from '../../api/orders/order-list-api-service';
 import { routerPathNames } from '../../routes/routerPathNames';
 import { RootState } from '../../state/store';
@@ -765,10 +766,13 @@ const BillingPage: React.FC = () => {
         await printA4SameTab(data.billNo || billNo);
       } else if (data.type === 'printed') {
         toast.success(data.message || 'Receipt printed and cut');
+      } else if (data.payload && data.printerName) {
+        await sendToLocalPrinter(data.printerName, data.payload);
+        toast.success(`Printed to: ${data.printerName}`);
       } else if (data.type === 'txt') {
         toast.warn(data.message || 'Thermal printer not found. Receipt saved as TXT. No Windows print used.');
       } else {
-        toast.error('Thermal print did not run. Check printer name in Company Details.');
+        toast.error(data.message || 'Receipt was not sent to the printer. Keep start-print-agent.bat open on this PC, then print again.');
       }
     } catch (e: any) {
       toast.error(e?.response?.data?.data?.error || e?.message || 'Thermal print failed');

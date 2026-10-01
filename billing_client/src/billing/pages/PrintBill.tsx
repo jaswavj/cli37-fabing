@@ -41,10 +41,10 @@ const PrintBill: React.FC = () => {
   const isA4 = format === 2;
 
   useEffect(() => {
-    if (!bill || !isA4) return;
+    if (!bill) return;
     const t = window.setTimeout(() => window.print(), 400);
     return () => window.clearTimeout(t);
-  }, [bill, isA4]);
+  }, [bill]);
 
   const calc = useMemo(() => {
     const items: Line[] = bill?.items || [];
@@ -89,12 +89,10 @@ const PrintBill: React.FC = () => {
 
   return (
     <div className="print-page">
-      {isA4 && (
-        <div className="print-controls no-print">
-          <button className="go" type="button" onClick={() => window.print()}>Print</button>
-          <button className="stop" type="button" onClick={() => window.close()}>Cancel</button>
-        </div>
-      )}
+      <div className="print-controls no-print">
+        <button className="go" type="button" onClick={() => window.print()}>Print</button>
+        <button className="stop" type="button" onClick={() => window.history.back()}>Cancel</button>
+      </div>
 
       {isA4 ? (
         <A4Invoice bill={bill} />
