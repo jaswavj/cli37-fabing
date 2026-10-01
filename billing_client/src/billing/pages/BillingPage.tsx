@@ -80,6 +80,7 @@ const BillingPage: React.FC = () => {
   const [menuProducts, setMenuProducts] = useState<Product[]>([]);
   const [menuCategory, setMenuCategory] = useState(0);
   const [menuQuery, setMenuQuery] = useState('');
+  const [cartOpen, setCartOpen] = useState(false);
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -88,7 +89,7 @@ const BillingPage: React.FC = () => {
   const [exchangePoint, setExchangePoint] = useState(0);
   const [exchangeUsed, setExchangeUsed] = useState(0);
   const [bypassCap, setBypassCap] = useState(false);
-  const [isTaxBill, setIsTaxBill] = useState(true);
+  const [isTaxBill, setIsTaxBill] = useState(false);
   const [isCommission, setIsCommission] = useState(false);
 
   const [search, setSearch] = useState('');
@@ -266,7 +267,6 @@ const BillingPage: React.FC = () => {
     setCustomerName(c.name);
     setCustomerPhone(c.phone === '-' ? '' : c.phone);
     setExchangePoint(c.exchangePoint || 0);
-    if (c.isEligibleForCommission === 1) setIsCommission(true);
     setCustomerHits([]);
   };
 
@@ -880,6 +880,11 @@ const BillingPage: React.FC = () => {
                 placeholder="Search menu items..."
                 onChange={(e) => setMenuQuery(e.target.value)}
               />
+              {menuQuery && (
+                <button type="button" className="cafe-search-clear" onClick={() => setMenuQuery('')} aria-label="Clear search">
+                  ×
+                </button>
+              )}
             </div>
             <div className="cafe-grid">
               {visibleProducts.length === 0 && (
@@ -888,7 +893,6 @@ const BillingPage: React.FC = () => {
               {visibleProducts.map((p) => {
                 const qtyInCart = addedQty(p.id);
                 const selected = qtyInCart > 0;
-                const oos = (p.stock ?? 0) <= 0;
                 return (
                   <div
                     key={p.id}
@@ -908,15 +912,23 @@ const BillingPage: React.FC = () => {
                     <span className="cafe-card-icon"><CafeItemIcon /></span>
                     <span className="cafe-card-name">{p.name}</span>
                     <span className="cafe-card-price">{rupee(p.mrp)}</span>
-                    {oos && <span className="cafe-card-oos">Out of stock</span>}
                   </div>
                 );
               })}
             </div>
           </div>
 
-          <aside className="cafe-order">
+          <button type="button" className="cafe-cart-bar" onClick={() => setCartOpen(true)}>
+            <span className="cafe-cart-bar-count">{lines.length} {lines.length === 1 ? 'item' : 'items'}</span>
+            <strong>{rupee(payable)}</strong>
+            <span className="cafe-cart-bar-open">View order</span>
+          </button>
+
+          <aside className={`cafe-order${cartOpen ? ' open' : ''}`}>
             <div className="cafe-order-head">
+              <button type="button" className="cafe-order-back" onClick={() => setCartOpen(false)} aria-label="Back to products">
+                <i className="fas fa-arrow-left" />
+              </button>
               <h3>Order</h3>
               <span className="cafe-order-count">{lines.length} {lines.length === 1 ? 'item' : 'items'}</span>
             </div>
@@ -953,7 +965,7 @@ const BillingPage: React.FC = () => {
                 <button className="pos-btn pos-btn-outline" type="button" onClick={openDupe}>DUP</button>
                 <button className="pos-btn pos-btn-outline" type="button" onClick={newBill}>REFRESH</button>
               </div>
-              {(savedNo || editBillNo || holdNo) && (
+              {(Boolean(savedNo) || Boolean(editBillNo) || Boolean(holdNo)) && (
                 <div className="pos-billno" style={{ margin: '4px 0 8px' }}>
                   {savedNo || editBillNo ? `Bill No - ${savedNo || editBillNo}` : ''}{holdNo ? ` Hold - ${holdNo}` : ''}
                 </div>
@@ -972,8 +984,8 @@ const BillingPage: React.FC = () => {
       ) : (
         <>
           <div className="pos-top">
-            <div className="pos-row">
-              <div className="pos-fg" style={{ flex: 2.8, minWidth: 160 }}>
+            <div className="pos-row pos-entry">
+              <div className="pos-fg pos-entry-search">
                 <span className="pos-lbl">Code / Item Name</span>
                 <input
                   ref={searchRef}
@@ -984,14 +996,6 @@ const BillingPage: React.FC = () => {
                   onChange={(e) => onSearchChange(e.target.value)}
                   onKeyDown={onSearchKey}
                 />
-                {stock !== null && (
-                  <span className="pos-stock" style={{
-                    background: stock <= 0 ? '#fee2e2' : stock <= 5 ? '#fef3c7' : '#dcfce7',
-                    color: stock <= 0 ? '#dc2626' : stock <= 5 ? '#b45309' : '#16a34a',
-                  }}>
-                    {stock <= 0 ? 'Stock: OUT OF STOCK' : `Stock: ${stock}`}
-                  </span>
-                )}
                 {nameHits.length > 0 && (
                   <div className="pos-suggest">
                     {nameHits.map((name) => (
@@ -1000,7 +1004,7 @@ const BillingPage: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div className="pos-fg" style={{ flex: 0.75, minWidth: 78 }}>
+              <div className="pos-fg pos-entry-unit">
                 <span className="pos-lbl">Unit</span>
                 <select className="pos-sel" value={unitSel} disabled={!kgProduct} onChange={(e) => setUnitSel(e.target.value)}>
                   <option value="">{pending?.unitName || 'Unit'}</option>
@@ -1008,19 +1012,65 @@ const BillingPage: React.FC = () => {
                   {kgProduct && <option value="gram">Gram</option>}
                 </select>
               </div>
-              <div className="pos-fg" style={{ flex: 0.65, minWidth: 68 }}>
+              <div className="pos-fg pos-entry-qty">
                 <span className="pos-lbl">Qty</span>
                 <input ref={qtyRef} className="pos-inp" value={qty} onChange={(e) => setQty(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addProduct()} />
               </div>
-              <div className="pos-fg" style={{ flex: 0.9, minWidth: 88 }}>
+              <div className="pos-fg pos-entry-price">
                 <span className="pos-lbl">Price</span>
                 <input className="pos-inp" value={price} onChange={(e) => setPrice(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addProduct()} />
               </div>
-              <button className="pos-btn" type="button" onClick={addProduct}>ADD</button>
+              <button className="pos-btn pos-entry-add" type="button" onClick={addProduct}>ADD</button>
               {!editBillId && (
-                <button className="pos-btn pos-btn-outline" type="button" onClick={openHolds}>HOLD LIST</button>
+                <button className="pos-btn pos-btn-outline pos-entry-hold" type="button" onClick={openHolds}>HOLD LIST</button>
               )}
             </div>
+          </div>
+
+          <div className="pos-lines-m">
+            {lines.length === 0 && <div className="pos-lines-m-empty">Scan or search an item to add it</div>}
+            {lines.map((line) => (
+              <div key={line.key} className="pos-line-m">
+                <div className="pos-line-m-name">
+                  <strong onClick={() => showHistory(line)}>{line.name}</strong>
+                  <button type="button" className="pos-line-m-x" onClick={() => removeLine(line.key)} aria-label="Remove">×</button>
+                </div>
+                <div className="pos-line-m-row">
+                  <label>
+                    <span>Qty</span>
+                    <input
+                      className="pos-inp"
+                      value={line.displayQty}
+                      onChange={(e) => updateLineQtyPrice(line.key, parseFloat(e.target.value) || 0, line.price)}
+                    />
+                  </label>
+                  <label>
+                    <span>Price</span>
+                    <input
+                      className="pos-inp"
+                      value={line.price}
+                      onChange={(e) => updateLineQtyPrice(line.key, line.qty, parseFloat(e.target.value) || 0)}
+                    />
+                  </label>
+                  <div className="pos-line-m-total">
+                    <span>Total</span>
+                    <strong>₹{money(isCommission ? line.total : line.qty * line.price - line.discount)}</strong>
+                  </div>
+                </div>
+                <div className="pos-line-m-disc">
+                  <select value={line.discType} onChange={(e) => updateLineDisc(line.key, Number(e.target.value) as 1 | 2, line.discInput)}>
+                    <option value={1}>₹</option>
+                    <option value={2}>%</option>
+                  </select>
+                  <input
+                    className="pos-inp"
+                    value={line.discInput}
+                    placeholder="Discount"
+                    onChange={(e) => updateLineDisc(line.key, line.discType, parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="pos-table-wrap">
@@ -1094,7 +1144,7 @@ const BillingPage: React.FC = () => {
                   {savedNo && !editBillId ? 'BILL SAVED' : editBillId ? 'UPDATE' : 'SAVE'}
                 </button>
                 {(savedNo || editBillNo) && <div className="pos-billno">Bill No - {savedNo || editBillNo}</div>}
-                {holdNo && <div className="pos-billno">Hold - {holdNo}</div>}
+                {Boolean(holdNo) && <div className="pos-billno">Hold - {holdNo}</div>}
                 {orderId > 0 && <div className="pos-billno">Order loaded</div>}
               </div>
             </div>
@@ -1128,148 +1178,154 @@ const BillingPage: React.FC = () => {
 
       {saveOpen && (
         <div className="pos-modal-back" onClick={closeSave}>
-          <div className="pos-modal pos-save-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="pos-modal bill-save" onClick={(e) => e.stopPropagation()}>
             <div className="pos-modal-head">
               <h4>{editBillId ? `Update Bill #${editBillNo}` : 'Save Bill'}</h4>
               <button className="pos-btn pos-btn-outline" type="button" title="Alt+C" onClick={closeSave}>Close</button>
             </div>
-            <div className="pos-row" style={{ marginBottom: 12 }}>
-              <div className="pos-fg" style={{ flex: 1.6, minWidth: 130 }}>
-                <span className="pos-lbl">Customer Name</span>
-                <input
-                  className="pos-inp pos-inp-lg"
-                  value={customerName}
-                  placeholder="Customer name"
-                  onChange={(e) => {
-                    setCustomerName(e.target.value);
-                    setCustomerId(0);
-                    searchCustomers(e.target.value);
-                  }}
-                />
-                {customerHits.length > 0 && (
-                  <div className="pos-suggest">
-                    {customerHits.map((c) => (
-                      <button key={c.id} type="button" onClick={() => pickCustomer(c)}>
-                        {c.name} {c.phone && c.phone !== '-' ? `· ${c.phone}` : ''}
-                      </button>
-                    ))}
-                  </div>
+            <div className="bill-save-body">
+              <div className="bill-save-customer">
+                <div className="pos-fg">
+                  <span className="pos-lbl">Customer Name</span>
+                  <input
+                    className="pos-inp pos-inp-lg"
+                    value={customerName}
+                    placeholder="Customer name"
+                    onChange={(e) => {
+                      setCustomerName(e.target.value);
+                      setCustomerId(0);
+                      searchCustomers(e.target.value);
+                    }}
+                  />
+                  {customerHits.length > 0 && (
+                    <div className="pos-suggest">
+                      {customerHits.map((c) => (
+                        <button key={c.id} type="button" onClick={() => pickCustomer(c)}>
+                          {c.name} {c.phone && c.phone !== '-' ? `· ${c.phone}` : ''}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="pos-fg">
+                  <span className="pos-lbl">Phone No</span>
+                  <input
+                    className="pos-inp pos-inp-lg"
+                    value={customerPhone}
+                    placeholder="Phone number"
+                    onChange={(e) => {
+                      setCustomerPhone(e.target.value);
+                      searchCustomers(undefined, e.target.value);
+                    }}
+                  />
+                </div>
+                <label className="pos-tog bill-save-tax">
+                  <input type="checkbox" checked={isTaxBill} onChange={(e) => setIsTaxBill(e.target.checked)} />
+                  Tax Bill
+                </label>
+              </div>
+              {exchangePoint > 0 && (
+                <div className="pos-banner bill-save-note">
+                  Exchange Points: ₹{exchangePoint}
+                  <button
+                    className="pos-btn"
+                    type="button"
+                    onClick={() => {
+                      const use = Math.min(exchangePoint, payable);
+                      setExtraDisc(String(use));
+                      setExchangeUsed(use);
+                      setBypassCap(true);
+                    }}
+                  >
+                    Use as Discount
+                  </button>
+                </div>
+              )}
+              <div className="bill-save-totals">
+                <div className="pos-fg"><span className="pos-lbl">Price Total</span><input className="pos-inp" readOnly value={money(totals.priceTotal)} /></div>
+                <div className="pos-fg"><span className="pos-lbl">Discount</span><input className="pos-inp" readOnly value={money(totals.discountTotal)} /></div>
+                <div className="pos-fg"><span className="pos-lbl">Grand Total</span><input className="pos-inp" readOnly value={money(totals.grandTotal)} /></div>
+                <div className="pos-fg"><span className="pos-lbl">Extra Disc</span><input className="pos-inp" value={extraDisc} onChange={(e) => { setExtraDisc(e.target.value); setBypassCap(false); }} /></div>
+                <div className="bill-save-payable">
+                  <span>Payable</span>
+                  <strong>₹{money(payable)}</strong>
+                </div>
+              </div>
+              <div className="bill-save-pay">
+                <div className="pos-fg">
+                  <span className="pos-lbl">Pay Mode</span>
+                  <select className="pos-sel" value={mode} onChange={(e) => { autoPay.current = true; setMode(e.target.value); }}>
+                    <option value="1">Cash</option>
+                    <option value="2">Bank</option>
+                    <option value="3">Mixed</option>
+                  </select>
+                </div>
+                <div className="pos-fg">
+                  <span className="pos-lbl">Pay Type</span>
+                  <select className="pos-sel" value={payType} disabled={mode === '1'} onChange={(e) => setPayType(e.target.value)}>
+                    <option value="1">UPI</option>
+                    <option value="2">Debit Card</option>
+                    <option value="3">Credit Card</option>
+                    <option value="4">Net Banking</option>
+                    <option value="5">Wallet</option>
+                  </select>
+                </div>
+                <div className="pos-fg">
+                  <span className="pos-lbl">Cash Paid</span>
+                  <input
+                    className="pos-inp"
+                    value={cashPaid}
+                    disabled={mode === '2'}
+                    onChange={(e) => { autoPay.current = false; setCashPaid(e.target.value); }}
+                  />
+                </div>
+                <div className="pos-fg">
+                  <span className="pos-lbl">Bank Paid</span>
+                  <input
+                    className="pos-inp"
+                    value={bankPaid}
+                    disabled={mode === '1'}
+                    onChange={(e) => { autoPay.current = false; setBankPaid(e.target.value); }}
+                  />
+                </div>
+                <div className="pos-fg bill-save-due">
+                  <span className="pos-lbl">Due / Balance</span>
+                  <input className="pos-inp" readOnly value={money(dueAmt)} />
+                </div>
+              </div>
+              {paidOver && (
+                <div className="pos-banner bill-save-note bill-save-note-bad">
+                  Paid amount cannot be more than payable ({money(payable)}).
+                </div>
+              )}
+              {dueAmt > 0.001 && !paidOver && (
+                <div className="pos-banner bill-save-note bill-save-note-due">
+                  Due {money(dueAmt)} will be added to the customer account.
+                </div>
+              )}
+            </div>
+            <div className="bill-save-acts">
+              {(Boolean(savedNo) || Boolean(holdNo)) && (
+                <div className="bill-save-refs">
+                  {Boolean(savedNo) && <span>Bill No - {savedNo}</span>}
+                  {Boolean(holdNo) && <span>Hold - {holdNo}</span>}
+                </div>
+              )}
+              <div className="bill-save-buttons">
+                {editBillId > 0 && (
+                  <button className="pos-btn pos-btn-danger" type="button" onClick={() => { setCancelReason(''); setCancelOpen(true); }}>
+                    CANCEL BILL
+                  </button>
                 )}
-              </div>
-              <div className="pos-fg" style={{ flex: 1, minWidth: 120 }}>
-                <span className="pos-lbl">Phone No</span>
-                <input
-                  className="pos-inp pos-inp-lg"
-                  value={customerPhone}
-                  placeholder="Phone number"
-                  onChange={(e) => {
-                    setCustomerPhone(e.target.value);
-                    searchCustomers(undefined, e.target.value);
-                  }}
-                />
-              </div>
-              <label className="pos-tog">
-                <input type="checkbox" checked={isTaxBill} onChange={(e) => setIsTaxBill(e.target.checked)} />
-                Tax Bill
-              </label>
-              <label className="pos-tog">
-                <input type="checkbox" checked={isCommission} onChange={(e) => setIsCommission(e.target.checked)} />
-                Commission
-              </label>
-            </div>
-            {exchangePoint > 0 && (
-              <div className="pos-banner" style={{ marginBottom: 12 }}>
-                Exchange Points: ₹{exchangePoint}
-                <button
-                  className="pos-btn"
-                  type="button"
-                  onClick={() => {
-                    const use = Math.min(exchangePoint, payable);
-                    setExtraDisc(String(use));
-                    setExchangeUsed(use);
-                    setBypassCap(true);
-                  }}
-                >
-                  Use as Discount
+                <button className="pos-btn pos-btn-outline" type="button" title="Alt+C" onClick={closeSave}>CLOSE</button>
+                {!editBillId && (
+                  <button className="pos-btn pos-btn-outline" type="button" title="Alt+O" onClick={saveHold}>HOLD</button>
+                )}
+                <button className="pos-btn pos-btn-outline" type="button" title="Alt+P" onClick={() => printBill(savedNo || editBillNo || dupeNo)}>PRINT</button>
+                <button className={`pos-btn bill-save-go ${savedNo && !editBillId ? 'pos-btn-saved' : 'pos-btn-navy'}`} disabled={saving || (!!savedNo && !editBillId)} title="Alt+B" onClick={saveBill}>
+                  {savedNo && !editBillId ? 'BILL SAVED' : saving ? (editBillId ? 'Updating...' : 'Saving...') : (editBillId ? 'UPDATE' : 'SAVE')}
                 </button>
               </div>
-            )}
-            <div className="pos-grid">
-              <div className="pos-fg"><span className="pos-lbl">Price Total</span><input className="pos-inp" readOnly value={money(totals.priceTotal)} /></div>
-              <div className="pos-fg"><span className="pos-lbl">Discount</span><input className="pos-inp" readOnly value={money(totals.discountTotal)} /></div>
-              <div className="pos-fg"><span className="pos-lbl">Commission</span><input className="pos-inp" readOnly value={money(totals.commissionTotal)} /></div>
-              <div className="pos-fg"><span className="pos-lbl">Grand Total</span><input className="pos-inp" readOnly value={money(totals.grandTotal)} /></div>
-              <div className="pos-fg"><span className="pos-lbl">Extra Disc</span><input className="pos-inp" value={extraDisc} onChange={(e) => { setExtraDisc(e.target.value); setBypassCap(false); }} /></div>
-              <div className="pos-fg"><span className="pos-lbl pos-payable">PAYABLE</span><input className="pos-inp pos-inp-payable" readOnly value={money(payable)} /></div>
-            </div>
-            <div className="pos-pay" style={{ marginTop: 10 }}>
-              <div className="pos-fg">
-                <span className="pos-lbl">Pay Mode</span>
-                <select className="pos-sel" value={mode} onChange={(e) => { autoPay.current = true; setMode(e.target.value); }}>
-                  <option value="1">Cash</option>
-                  <option value="2">Bank</option>
-                  <option value="3">Mixed</option>
-                </select>
-              </div>
-              <div className="pos-fg">
-                <span className="pos-lbl">Pay Type</span>
-                <select className="pos-sel" value={payType} disabled={mode === '1'} onChange={(e) => setPayType(e.target.value)}>
-                  <option value="1">UPI</option>
-                  <option value="2">Debit Card</option>
-                  <option value="3">Credit Card</option>
-                  <option value="4">Net Banking</option>
-                  <option value="5">Wallet</option>
-                </select>
-              </div>
-              <div className="pos-fg">
-                <span className="pos-lbl">Cash Paid</span>
-                <input
-                  className="pos-inp"
-                  value={cashPaid}
-                  disabled={mode === '2'}
-                  onChange={(e) => { autoPay.current = false; setCashPaid(e.target.value); }}
-                />
-              </div>
-              <div className="pos-fg">
-                <span className="pos-lbl">Bank Paid</span>
-                <input
-                  className="pos-inp"
-                  value={bankPaid}
-                  disabled={mode === '1'}
-                  onChange={(e) => { autoPay.current = false; setBankPaid(e.target.value); }}
-                />
-              </div>
-              <div className="pos-fg">
-                <span className="pos-lbl">Due / Balance</span>
-                <input className="pos-inp" readOnly value={money(dueAmt)} />
-              </div>
-            </div>
-            {paidOver && (
-              <div className="pos-banner" style={{ marginTop: 8, background: '#fee2e2', color: '#991b1b' }}>
-                Paid amount cannot be more than payable ({money(payable)}).
-              </div>
-            )}
-            {dueAmt > 0.001 && !paidOver && (
-              <div className="pos-banner" style={{ marginTop: 8, background: '#fff7ed', color: '#9a3412' }}>
-                Due {money(dueAmt)} will be added to the customer account.
-              </div>
-            )}
-            <div className="pos-acts pos-acts-end" style={{ marginTop: 14 }}>
-              {editBillId && (
-                <button className="pos-btn pos-btn-danger" type="button" onClick={() => { setCancelReason(''); setCancelOpen(true); }}>
-                  CANCEL BILL
-                </button>
-              )}
-              <button className="pos-btn pos-btn-outline" type="button" title="Alt+C" onClick={closeSave}>CLOSE</button>
-              {!editBillId && (
-                <button className="pos-btn pos-btn-outline" type="button" title="Alt+O" onClick={saveHold}>HOLD</button>
-              )}
-              <button className="pos-btn pos-btn-outline" type="button" title="Alt+P" onClick={() => printBill(savedNo || editBillNo || dupeNo)}>PRINT</button>
-              <button className={`pos-btn ${savedNo && !editBillId ? 'pos-btn-saved' : 'pos-btn-navy'}`} disabled={saving || (!!savedNo && !editBillId)} title="Alt+B" onClick={saveBill}>
-                {savedNo && !editBillId ? 'BILL SAVED' : saving ? (editBillId ? 'Updating...' : 'Saving...') : (editBillId ? 'UPDATE' : 'SAVE')}
-              </button>
-              {savedNo && <div className="pos-billno">Bill No - {savedNo}</div>}
-              {holdNo && <div className="pos-billno">Hold - {holdNo}</div>}
             </div>
           </div>
         </div>
